@@ -11,3 +11,5 @@ jasmine's changes are here!
 Cindy add sage wisdom
 
 Adding some new ideas here
+
+adding more ideas
