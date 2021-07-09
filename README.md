@@ -9,3 +9,5 @@ Testing adding and pulling, here is a conflict...go team! Fletcher adds some tex
 jasmine's changes are here!
 
 Cindy add sage wisdom
+
+Getting ready to merge with branch
