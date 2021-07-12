@@ -1,0 +1,164 @@
+---
+title: "Session 8"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r warning=FALSE}
+library(dplyr)
+library(tidyr)
+library(readr)
+```
+## Data Source
+Data from Alaska Department of Fish and Game https://knb.ecoinformatics.org/view/df35b.304.2
+
+Read in the data
+```{r}
+catch_original<-read_csv("https://knb.ecoinformatics.org/knb/d1/mn/v2/object/df35b.302.1")
+```
+
+## Clean and reshape the data
+
+Remove unnecessary columns
+```{r}
+catch_data<-catch_original %>%
+  select(Region, Year, Chinook,Sockeye, Coho, Pink, Chum)
+
+head(catch_data)
+```
+```{r}
+catch_data<-catch_original %>%
+  select(-All, -notesRegCode)
+
+head(catch_data)
+```
+```{r}
+glimpse(catch_data)
+```
+
+Check column typing
+```{r}
+catch_clean <- catch_data %>% 
+  mutate(Chinook = as.numeric(Chinook))
+head(catch_clean)
+```
+
+```{r}
+i<-which(is.na(catch_clean$Chinook))
+```
+```{r}
+catch_data[i,]
+```
+```{r}
+catch_clean<-catch_data %>% 
+  mutate(Chinook = if_else(Chinook == "I",1,as.numeric(Chinook))) #dplyr if_else
+
+catch_clean<-catch_data %>% 
+  mutate(Chinook = ifelse(Chinook == "I",1,Chinook), #base ifelse
+         Chinook = as.numeric(Chinook))
+```
+```{r}
+catch_clean[i,]
+```
+
+Reshape data
+```{r}
+catch_long <- catch_clean %>% 
+  pivot_longer(cols = -c(Region, Year),
+               names_to = "Species",
+               values_to = "Catch")
+head(catch_long)
+```
+
+```{r}
+catch_wide <- catch_long %>% 
+  pivot_wider(names_from = Species,values_from = Catch)
+head(catch_wide)
+```
+```{r}
+catch_long <- catch_long %>% 
+  rename(catch_thousands = Catch)
+head(catch_long)
+```
+
+```{r}
+catch_long<- catch_long %>% 
+  mutate(catch = catch_thousands*1000) %>% 
+  select(-catch_thousands)
+head(catch_long)
+```
+```{r}
+mean_region <- catch_long %>% 
+  group_by(Region) %>%
+  summarise(catch_mean = mean(catch), n = n())
+
+head(mean_region)
+```
+```{r}
+mean_rspec <- catch_long %>% 
+  group_by(Region, Species) %>%
+  summarise(catch_mean = mean(catch),SD = sd(catch),n = n()) #add years of non-zero catch
+
+head(mean_rspec)
+```
+
+```{r}
+SSE_catch <- catch_long %>% 
+  filter(Region == "SSE")
+
+head(SSE_catch)
+```
+
+```{r}
+catch_long %>% 
+  group_by(Region) %>% 
+  summarize(mean_catch = mean(catch)) %>% 
+  arrange(desc(mean_catch))
+```
+
+## Join to Regions dataset
+
+```{r}
+region_defs <- read_csv("https://knb.ecoinformatics.org/knb/d1/mn/v2/object/df35b.303.1") %>% 
+    select(code, mgmtArea)
+```
+```{r}
+head(region_defs)
+```
+
+```{r}
+catch_joined <- left_join(catch_long, region_defs, by = c("Region" = "code"))
+
+head(catch_joined)
+```
+```{r}
+region_defs <- region_defs %>% 
+  rename(Region = code, Region_Name = mgmtArea)
+
+catch_joined <- left_join(catch_long, region_defs, by = c("Region"))
+
+head(catch_joined)
+```
+
+# Now, do it all together very elegantly
+```{r}
+catch_original <- read.csv(url("https://knb.ecoinformatics.org/knb/d1/mn/v2/object/df35b.302.1", method = "libcurl"))
+region_defs <- read.csv(url("https://knb.ecoinformatics.org/knb/d1/mn/v2/object/df35b.303.1", method = "libcurl")) %>% 
+    select(code, mgmtArea)
+
+mean_region <- catch_original %>%
+  select(-All, -notesRegCode) %>% 
+  mutate(Chinook = ifelse(Chinook == "I", 1, Chinook)) %>% 
+  mutate(Chinook = as.numeric(Chinook)) %>% 
+  pivot_longer(-c(Region, Year), names_to = "species", values_to = "catch") %>%
+  mutate(catch = catch*1000) %>% 
+  group_by(Region) %>% 
+  summarize(mean_catch = mean(catch)) %>% 
+  left_join(region_defs, by = c("Region" = "code"))
+
+head(mean_region)
+```
+
